@@ -12,13 +12,11 @@ x-airflow-common: &airflow-common
     - ../data:/opt/airflow/data:rw          
     - ./requirements.txt:/requirements.txt:ro
   environment:
-    # AIRFLOW CONFIGURATION
+    # These environment variables MUST be indented 4 spaces (two for environment: + two for the key)
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
-    # This line was the most likely source of the original error (Line 16)
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:////opt/airflow/data/app.db 
-    # KAFKA CONNECTION (kafka is the service name below)
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:////opt/airflow/data/app.db # This is likely Line 16
     KAFKA_BROKER: kafka:9092
     
 services:
