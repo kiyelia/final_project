@@ -12,57 +12,58 @@ x-airflow-common: &airflow-common
     - ../data:/opt/airflow/data:rw          
     - ./requirements.txt:/requirements.txt:ro
   environment:
-    # AIRFLOW CONFIGURATION (THIS WAS THE PROBLEM AREA)
+    # AIRFLOW CONFIGURATION
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
-    # This line was likely Line 16 and is now correct
+    # This line was the most likely source of the original error (Line 16)
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:////opt/airflow/data/app.db 
     # KAFKA CONNECTION (kafka is the service name below)
     KAFKA_BROKER: kafka:9092
-  
+    
 services:
-  # 1. KAFKA SERVICE
+  # The Kafka Broker
   kafka:
-    image: confluentinc/cp-kafka:7.6.0
-    container_name: kafka
+    image: confluentinc/cp-kafka:7.6.1
     hostname: kafka
     ports:
       - "9092:9092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      # Allows connection from both inside Docker (kafka:29092) and your Codespace (localhost:9092)
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-    depends_on:
-      - zookeeper
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
 
-  # 2. ZOOKEEPER SERVICE (Required by Kafka)
+  # The Zookeeper server (required for Kafka metadata)
   zookeeper:
-    image: confluentinc/cp-zookeeper:7.6.0
-    container_name: zookeeper
+    image: confluentinc/cp-zookeeper:7.6.1
     hostname: zookeeper
     ports:
       - "2181:2181"
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
 
-  # 3. AIRFLOW SCHEDULER (Runs the DAGs @daily and @hourly) [cite: 36, 42]
+  # The Airflow Scheduler
   airflow-scheduler:
-    <<: *airflow-common 
-    container_name: airflow-scheduler
-    depends_on:
-      - kafka
-      - airflow-webserver
+    <<: *airflow-common # Use the common configuration block
     command: scheduler
-
-  # 4. AIRFLOW WEBSERVER (The UI)
-  airflow-webserver:
-    <<: *airflow-common 
-    container_name: airflow-webserver
     depends_on:
       - kafka
+      - zookeeper
+
+  # The Airflow Web Server
+  airflow-webserver:
+    <<: *airflow-common # Use the common configuration block
+    command: webserver
     ports:
       - "8080:8080"
-    command: webserver
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 30s
+      retries: 5
+    depends_on:
+      - airflow-scheduler
