@@ -1,7 +1,7 @@
 version: '3.7'
 
 # Define a common block for Airflow service properties
-x-airflow-common: &airflow-common
+x-airflow-common: &airflow-common # <-- ANCHOR DEFINED HERE, NEXT TO THE KEY
   # This image is the one Airflow is based on
   image: apache/airflow:2.8.1-python3.11
   user: "${AIRFLOW_UID:-50000}:0" 
@@ -12,11 +12,12 @@ x-airflow-common: &airflow-common
     - ../data:/opt/airflow/data:rw          
     - ./requirements.txt:/requirements.txt:ro
   environment:
-    # These environment variables MUST be indented 4 spaces (two for environment: + two for the key)
+    # AIRFLOW CORE CONFIG (NO SECOND ANCHOR NEEDED HERE)
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:////opt/airflow/data/app.db # This is likely Line 16
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:////opt/airflow/data/app.db 
+    # KAFKA CONNECTION (kafka is the service name below)
     KAFKA_BROKER: kafka:9092
     
 services:
@@ -46,7 +47,7 @@ services:
 
   # The Airflow Scheduler
   airflow-scheduler:
-    <<: *airflow-common # Use the common configuration block
+    <<: *airflow-common # Correctly uses the anchor defined above
     command: scheduler
     depends_on:
       - kafka
@@ -54,7 +55,7 @@ services:
 
   # The Airflow Web Server
   airflow-webserver:
-    <<: *airflow-common # Use the common configuration block
+    <<: *airflow-common # Correctly uses the anchor defined above
     command: webserver
     ports:
       - "8080:8080"
