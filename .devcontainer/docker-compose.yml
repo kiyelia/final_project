@@ -1,25 +1,25 @@
-# .devcontainer/docker-compose.yml
 version: '3.7'
-x-airflow-common:
-  &airflow-common
-  # You can use the official Airflow image and rely on the requirements.txt 
+
+# Define a common block for Airflow service properties
+x-airflow-common: &airflow-common
+  # This image is the one Airflow is based on
   image: apache/airflow:2.8.1-python3.11
   user: "${AIRFLOW_UID:-50000}:0" 
   volumes:
-    # Crucial: Mount your code so it can be used by the Airflow containers
+    # Mount your local code folders into the container
     - ../airflow/dags:/opt/airflow/dags:rw  
     - ../src:/opt/airflow/src:rw            
     - ../data:/opt/airflow/data:rw          
-    - ./requirements.txt:/requirements.txt:ro # For installing deps inside the container
+    - ./requirements.txt:/requirements.txt:ro
   environment:
-    # AIRFLOW CORE CONFIG
-    &airflow-env
+    # AIRFLOW CONFIGURATION (THIS WAS THE PROBLEM AREA)
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
-    [cite_start]AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:////opt/airflow/data/app.db # DB Path [cite: 74]
-    # KAFKA CONNECTION (Used by your job1_producer.py script)
-    KAFKA_BROKER: kafka:9092 # 'kafka' is the service name below
+    # This line was likely Line 16 and is now correct
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:////opt/airflow/data/app.db 
+    # KAFKA CONNECTION (kafka is the service name below)
+    KAFKA_BROKER: kafka:9092
   
 services:
   # 1. KAFKA SERVICE
