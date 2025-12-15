@@ -1,0 +1,68 @@
+# .devcontainer/docker-compose.yml
+version: '3.7'
+x-airflow-common:
+  &airflow-common
+  # You can use the official Airflow image and rely on the requirements.txt 
+  image: apache/airflow:2.8.1-python3.11
+  user: "${AIRFLOW_UID:-50000}:0" 
+  volumes:
+    # Crucial: Mount your code so it can be used by the Airflow containers
+    - ../airflow/dags:/opt/airflow/dags:rw  
+    - ../src:/opt/airflow/src:rw            
+    - ../data:/opt/airflow/data:rw          
+    - ./requirements.txt:/requirements.txt:ro # For installing deps inside the container
+  environment:
+    # AIRFLOW CORE CONFIG
+    &airflow-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+    [cite_start]AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:////opt/airflow/data/app.db # DB Path [cite: 74]
+    # KAFKA CONNECTION (Used by your job1_producer.py script)
+    KAFKA_BROKER: kafka:9092 # 'kafka' is the service name below
+  
+services:
+  # 1. KAFKA SERVICE
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: kafka
+    hostname: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      # Allows connection from both inside Docker (kafka:29092) and your Codespace (localhost:9092)
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+    depends_on:
+      - zookeeper
+
+  # 2. ZOOKEEPER SERVICE (Required by Kafka)
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: zookeeper
+    hostname: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+
+  # 3. AIRFLOW SCHEDULER (Runs the DAGs @daily and @hourly) [cite: 36, 42]
+  airflow-scheduler:
+    <<: *airflow-common 
+    container_name: airflow-scheduler
+    depends_on:
+      - kafka
+      - airflow-webserver
+    command: scheduler
+
+  # 4. AIRFLOW WEBSERVER (The UI)
+  airflow-webserver:
+    <<: *airflow-common 
+    container_name: airflow-webserver
+    depends_on:
+      - kafka
+    ports:
+      - "8080:8080"
+    command: webserver
